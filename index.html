@@ -955,17 +955,17 @@
     let analyzeFileData = null;
     let analyzeMimeType = null;
 
-    // PDF.js worker 설정
-    if (typeof pdfjsLib !== 'undefined') {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    }
-
     function handleAnalyzeFile(files) {
       if (!files || files.length === 0) return;
       const file = files[0];
       const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
 
       if (isPdf) {
+        if (typeof pdfjsLib === 'undefined') {
+          alert('PDF 라이브러리 로딩 중입니다. 잠시 후 다시 시도해주세요.');
+          return;
+        }
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         loadPdfPages(file);
       } else {
         loadImageFile(file);
@@ -998,36 +998,39 @@
 
     async function loadPdfPages(file) {
       analyzeMimeType = 'image/jpeg';
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      const totalPages = pdf.numPages;
-
       const thumbContainer = document.getElementById('pdf-thumbnails');
-      thumbContainer.innerHTML = '';
-
-      // 썸네일 생성
-      for (let i = 1; i <= totalPages; i++) {
-        const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: 0.3 });
-        const canvas = document.createElement('canvas');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-
-        const thumbDiv = document.createElement('div');
-        thumbDiv.className = 'pdf-thumb';
-        thumbDiv.dataset.page = i;
-        thumbDiv.innerHTML = `<div class="pdf-thumb-label">${i}p</div>`;
-        thumbDiv.insertBefore(canvas, thumbDiv.firstChild);
-        thumbDiv.onclick = () => selectPdfPage(pdf, i, thumbDiv, file.name);
-        thumbContainer.appendChild(thumbDiv);
-      }
-
+      thumbContainer.innerHTML = '<div style="font-size:0.85rem;color:var(--text-muted);">PDF 읽는 중...</div>';
       document.getElementById('pdf-page-selector').style.display = 'block';
 
-      // 1페이지 자동 선택
-      if (totalPages >= 1) {
-        thumbContainer.firstChild.click();
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const totalPages = pdf.numPages;
+        thumbContainer.innerHTML = '';
+
+        for (let i = 1; i <= totalPages; i++) {
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 0.3 });
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+          const thumbDiv = document.createElement('div');
+          thumbDiv.className = 'pdf-thumb';
+          thumbDiv.dataset.page = i;
+          thumbDiv.innerHTML = `<div class="pdf-thumb-label">${i}p</div>`;
+          thumbDiv.insertBefore(canvas, thumbDiv.firstChild);
+          thumbDiv.onclick = () => selectPdfPage(pdf, i, thumbDiv, file.name);
+          thumbContainer.appendChild(thumbDiv);
+        }
+
+        // 1페이지 자동 선택
+        if (totalPages >= 1) {
+          thumbContainer.firstChild.click();
+        }
+      } catch (err) {
+        thumbContainer.innerHTML = `<div style="font-size:0.85rem;color:#ef4444;">PDF 읽기 실패: ${err.message}</div>`;
       }
     }
 

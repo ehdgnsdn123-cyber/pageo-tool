@@ -599,9 +599,12 @@
 
       <!-- PDF 페이지 선택 -->
       <div id="pdf-page-selector" style="display:none; margin-top:16px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-          <div style="font-size:0.85rem; font-weight:600; color:var(--text);">분석할 페이지를 선택하세요 <span style="font-weight:400;color:var(--text-muted);">(최대 5페이지)</span></div>
-          <div id="pdf-selected-count" style="font-size:0.8rem; color:var(--accent); font-weight:600;"></div>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+          <div style="font-size:0.85rem; font-weight:600; color:var(--text);">분석할 페이지 선택 <span style="font-weight:400;color:var(--text-muted);">(최대 5페이지)</span></div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <div id="pdf-selected-count" style="font-size:0.8rem; color:var(--accent); font-weight:600;"></div>
+            <button id="pdf-auto-btn" onclick="autoSelectPages()" style="padding:6px 14px; background:var(--accent-light); color:var(--accent); border:1px solid var(--accent); border-radius:50px; font-family:var(--font); font-size:0.78rem; font-weight:600; cursor:pointer;">전체 자동 선택</button>
+          </div>
         </div>
         <div id="pdf-thumbnails" style="display:flex; flex-wrap:wrap; gap:10px; max-height:320px; overflow-y:auto; padding:4px;"></div>
         <button id="pdf-analyze-btn" onclick="analyzePdfSelected()" style="display:none; margin-top:12px; padding:10px 24px; background:var(--accent); color:#fff; border:none; border-radius:50px; font-family:var(--font); font-size:0.875rem; font-weight:600; cursor:pointer;">선택한 페이지 분석하기</button>
@@ -1021,6 +1024,8 @@
       try {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        window._currentPdf = pdf;
+        window._currentPdfName = file.name;
         const totalPages = pdf.numPages;
         thumbContainer.innerHTML = '';
 
@@ -1110,6 +1115,38 @@
       const sortedPages = [...selectedPdfPages].sort((a, b) => a - b);
       analyzeAllPages = sortedPages.map(p => pdfPageImages[p]);
       analyzeImage();
+    }
+
+    async function autoSelectPages() {
+      const thumbDivs = document.querySelectorAll('.pdf-thumb');
+      const totalPages = thumbDivs.length;
+      if (totalPages === 0) return;
+
+      // 선택 초기화
+      selectedPdfPages.clear();
+      thumbDivs.forEach(t => t.classList.remove('selected'));
+
+      // 균등 분포: 처음/끝 포함해서 5장 선택
+      const count = Math.min(MAX_SELECT, totalPages);
+      const picks = [];
+      if (count === 1) {
+        picks.push(1);
+      } else {
+        for (let i = 0; i < count; i++) {
+          picks.push(Math.round(1 + i * (totalPages - 1) / (count - 1)));
+        }
+      }
+
+      document.getElementById('pdf-auto-btn').textContent = '페이지 준비 중...';
+      document.getElementById('pdf-auto-btn').disabled = true;
+
+      for (const pageNum of picks) {
+        const thumbEl = thumbDivs[pageNum - 1];
+        await togglePdfPage(pageNum, thumbEl, window._currentPdf, window._currentPdfName);
+      }
+
+      document.getElementById('pdf-auto-btn').textContent = '전체 자동 선택';
+      document.getElementById('pdf-auto-btn').disabled = false;
     }
 
     async function analyzeImage() {

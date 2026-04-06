@@ -6,6 +6,7 @@
   <title>PageO Tool | 내부 작업 도구</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
     :root {
       --accent: #2C4A6E;
@@ -456,6 +457,11 @@
     .color-chip-role { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; }
     .color-chip-name { font-size: 0.8rem; font-weight: 500; color: var(--text); }
 
+    .pdf-thumb { cursor: pointer; border: 2px solid var(--border); border-radius: 8px; overflow: hidden; transition: border-color 0.2s; }
+    .pdf-thumb:hover { border-color: var(--accent); }
+    .pdf-thumb.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+    .pdf-thumb canvas { display: block; width: 100px; height: auto; }
+    .pdf-thumb-label { font-size: 0.72rem; text-align: center; padding: 4px; color: var(--text-muted); background: var(--bg); }
     .analyze-tags-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
     .analyze-tag-badge { font-size: 0.78rem; font-weight: 600; padding: 4px 12px; border-radius: 50px; background: #EFF6FF; color: #2563EB; border: 1px solid #BFDBFE; }
     .analyze-insight-wrap { background: linear-gradient(135deg, #F8F7FF 0%, #EEF2FF 100%); border: 1px solid #C7D2FE; border-radius: 12px; padding: 20px 22px; margin-bottom: 20px; }
@@ -586,10 +592,16 @@
         ondragover="analyzeOnDragOver(event)" ondragleave="analyzeOnDragLeave()" ondrop="analyzeOnDrop(event)"
       >
         <div class="analyze-upload-icon">🔍</div>
-        <div class="analyze-upload-text">분석할 상세페이지 이미지 업로드</div>
-        <div class="analyze-upload-sub">JPG, PNG 지원 · 상세페이지 전체 또는 일부 캡처 가능</div>
+        <div class="analyze-upload-text">분석할 상세페이지 업로드</div>
+        <div class="analyze-upload-sub">JPG, PNG, PDF 지원 · PDF는 페이지 선택 가능</div>
       </div>
-      <input type="file" id="analyze-file-input" accept="image/*" onchange="handleAnalyzeFile(this.files)" />
+      <input type="file" id="analyze-file-input" accept="image/*,.pdf,application/pdf" onchange="handleAnalyzeFile(this.files)" />
+
+      <!-- PDF 페이지 선택 -->
+      <div id="pdf-page-selector" style="display:none; margin-top:16px;">
+        <div style="font-size:0.85rem; font-weight:600; color:var(--text); margin-bottom:10px;">분석할 페이지를 선택하세요</div>
+        <div id="pdf-thumbnails" style="display:flex; flex-wrap:wrap; gap:10px;"></div>
+      </div>
 
       <!-- 미리보기 -->
       <div class="analyze-preview-wrap" id="analyze-preview-wrap">
@@ -943,12 +955,26 @@
     let analyzeFileData = null;
     let analyzeMimeType = null;
 
+    // PDF.js worker 설정
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
     function handleAnalyzeFile(files) {
       if (!files || files.length === 0) return;
       const file = files[0];
-      analyzeMimeType = 'image/jpeg';
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
 
-      // 캔버스로 이미지 압축
+      if (isPdf) {
+        loadPdfPages(file);
+      } else {
+        loadImageFile(file);
+      }
+    }
+
+    function loadImageFile(file) {
+      analyzeMimeType = 'image/jpeg';
+      document.getElementById('pdf-page-selector').style.display = 'none';
       const img = new Image();
       const objectUrl = URL.createObjectURL(file);
       img.onload = () => {
@@ -968,6 +994,68 @@
         URL.revokeObjectURL(objectUrl);
       };
       img.src = objectUrl;
+    }
+
+    async function loadPdfPages(file) {
+      analyzeMimeType = 'image/jpeg';
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const totalPages = pdf.numPages;
+
+      const thumbContainer = document.getElementById('pdf-thumbnails');
+      thumbContainer.innerHTML = '';
+
+      // 썸네일 생성
+      for (let i = 1; i <= totalPages; i++) {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 0.3 });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+        const thumbDiv = document.createElement('div');
+        thumbDiv.className = 'pdf-thumb';
+        thumbDiv.dataset.page = i;
+        thumbDiv.innerHTML = `<div class="pdf-thumb-label">${i}p</div>`;
+        thumbDiv.insertBefore(canvas, thumbDiv.firstChild);
+        thumbDiv.onclick = () => selectPdfPage(pdf, i, thumbDiv, file.name);
+        thumbContainer.appendChild(thumbDiv);
+      }
+
+      document.getElementById('pdf-page-selector').style.display = 'block';
+
+      // 1페이지 자동 선택
+      if (totalPages >= 1) {
+        thumbContainer.firstChild.click();
+      }
+    }
+
+    async function selectPdfPage(pdf, pageNum, thumbEl, fileName) {
+      document.querySelectorAll('.pdf-thumb').forEach(t => t.classList.remove('selected'));
+      thumbEl.classList.add('selected');
+
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+      // 1200px 제한 압축
+      const MAX = 1200;
+      const outCanvas = document.createElement('canvas');
+      let w = canvas.width, h = canvas.height;
+      if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+      outCanvas.width = w;
+      outCanvas.height = h;
+      outCanvas.getContext('2d').drawImage(canvas, 0, 0, w, h);
+      const compressed = outCanvas.toDataURL('image/jpeg', 0.75);
+
+      analyzeFileData = compressed.split(',')[1];
+      document.getElementById('analyze-preview-img').src = compressed;
+      document.getElementById('analyze-preview-name').textContent = `${fileName} — ${pageNum}페이지`;
+      document.getElementById('analyze-preview-wrap').classList.add('show');
     }
 
     async function analyzeImage() {
@@ -1170,6 +1258,8 @@
       document.getElementById('analyze-preview-wrap').classList.remove('show');
       document.getElementById('analyze-result').classList.remove('show');
       document.getElementById('analyze-file-input').value = '';
+      document.getElementById('pdf-page-selector').style.display = 'none';
+      document.getElementById('pdf-thumbnails').innerHTML = '';
     }
 
     function analyzeOnDragOver(e) { e.preventDefault(); document.getElementById('analyze-upload-zone').classList.add('dragover'); }

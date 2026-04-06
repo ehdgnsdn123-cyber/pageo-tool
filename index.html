@@ -1076,9 +1076,9 @@
         if (!pdfPageImages[pageNum]) {
           thumbEl.style.opacity = '0.5';
           const page = await pdf.getPage(pageNum);
-          const viewport = page.getViewport({ scale: 0.8 });
+          const viewport = page.getViewport({ scale: 1.5 });
           const canvas = document.createElement('canvas');
-          const MAX = 600;
+          const MAX = 1000;
           let w = viewport.width, h = viewport.height;
           if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
           canvas.width = viewport.width;
@@ -1087,7 +1087,7 @@
           const out = document.createElement('canvas');
           out.width = w; out.height = h;
           out.getContext('2d').drawImage(canvas, 0, 0, w, h);
-          pdfPageImages[pageNum] = out.toDataURL('image/jpeg', 0.5).split(',')[1];
+          pdfPageImages[pageNum] = out.toDataURL('image/jpeg', 0.75).split(',')[1];
           thumbEl.style.opacity = '1';
         }
         selectedPdfPages.add(pageNum);

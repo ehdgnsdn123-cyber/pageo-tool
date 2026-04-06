@@ -3,11 +3,22 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { imageBase64, mimeType } = req.body;
+  const { imageBase64, images, mimeType } = req.body;
 
-  if (!imageBase64) {
+  if (!imageBase64 && (!images || images.length === 0)) {
     return res.status(400).json({ error: '이미지가 없어요!' });
   }
+
+  // 단일 이미지 또는 PDF 전체 페이지 배열 처리
+  const imageBlocks = images
+    ? images.map(data => ({
+        type: 'image',
+        source: { type: 'base64', media_type: mimeType || 'image/jpeg', data }
+      }))
+    : [{
+        type: 'image',
+        source: { type: 'base64', media_type: mimeType || 'image/jpeg', data: imageBase64 }
+      }];
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -24,14 +35,7 @@ export default async function handler(req, res) {
           {
             role: 'user',
             content: [
-              {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: mimeType || 'image/jpeg',
-                  data: imageBase64,
-                }
-              },
+              ...imageBlocks,
               {
                 type: 'text',
                 text: `당신은 한국 이커머스 상세페이지 전문 디자이너이자 카피라이터이자 마케터입니다.

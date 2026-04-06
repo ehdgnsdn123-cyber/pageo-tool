@@ -952,7 +952,8 @@
     // ============================================================
     // 레퍼런스 분석
     // ============================================================
-    let analyzeFileData = null;
+    let analyzeFileData = null;    // 단일 이미지
+    let analyzeAllPages = null;    // PDF 전체 페이지 배열
     let analyzeMimeType = null;
 
     function handleAnalyzeFile(files) {
@@ -974,6 +975,7 @@
 
     function loadImageFile(file) {
       analyzeMimeType = 'image/jpeg';
+      analyzeAllPages = null;
       document.getElementById('pdf-page-selector').style.display = 'none';
       const img = new Image();
       const objectUrl = URL.createObjectURL(file);
@@ -998,6 +1000,8 @@
 
     async function loadPdfPages(file) {
       analyzeMimeType = 'image/jpeg';
+      analyzeFileData = null;
+      analyzeAllPages = null;
       const thumbContainer = document.getElementById('pdf-thumbnails');
       thumbContainer.innerHTML = '<div style="font-size:0.85rem;color:var(--text-muted);">PDF 읽는 중...</div>';
       document.getElementById('pdf-page-selector').style.display = 'block';
@@ -1005,10 +1009,10 @@
       try {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const totalPages = pdf.numPages;
+        const totalPages = Math.min(pdf.numPages, 10); // 최대 10페이지
         thumbContainer.innerHTML = '';
 
-        // 1. 순서대로 플레이스홀더 먼저 생성
+        // 썸네일용 플레이스홀더 순서대로 생성
         const thumbDivs = [];
         for (let i = 1; i <= totalPages; i++) {
           const thumbDiv = document.createElement('div');
@@ -1021,67 +1025,67 @@
           thumbDivs.push(thumbDiv);
         }
 
-        // 2. 순서대로 렌더링해서 플레이스홀더 교체
+        // 전체 페이지 이미지 수집
+        const pages = [];
         for (let i = 1; i <= totalPages; i++) {
           const page = await pdf.getPage(i);
-          const viewport = page.getViewport({ scale: 0.3 });
+
+          // 썸네일 렌더링
+          const thumbViewport = page.getViewport({ scale: 0.3 });
+          const thumbCanvas = document.createElement('canvas');
+          thumbCanvas.width = thumbViewport.width;
+          thumbCanvas.height = thumbViewport.height;
+          await page.render({ canvasContext: thumbCanvas.getContext('2d'), viewport: thumbViewport }).promise;
+          thumbDivs[i - 1].innerHTML = `<div class="pdf-thumb-label">${i}p</div>`;
+          thumbDivs[i - 1].insertBefore(thumbCanvas, thumbDivs[i - 1].firstChild);
+
+          // 분석용 고해상도 렌더링
+          const viewport = page.getViewport({ scale: 1.5 });
           const canvas = document.createElement('canvas');
+          const MAX = 1200;
+          let w = viewport.width, h = viewport.height;
+          if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
           canvas.width = viewport.width;
           canvas.height = viewport.height;
           await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-
-          const thumbDiv = thumbDivs[i - 1];
-          thumbDiv.innerHTML = `<div class="pdf-thumb-label">${i}p</div>`;
-          thumbDiv.insertBefore(canvas, thumbDiv.firstChild);
-          thumbDiv.onclick = () => selectPdfPage(pdf, i, thumbDiv, file.name);
+          const out = document.createElement('canvas');
+          out.width = w; out.height = h;
+          out.getContext('2d').drawImage(canvas, 0, 0, w, h);
+          pages.push(out.toDataURL('image/jpeg', 0.7).split(',')[1]);
         }
 
-        // 1페이지 자동 선택
-        thumbDivs[0].click();
+        analyzeAllPages = pages;
+
+        // 미리보기는 1페이지로
+        const previewData = 'data:image/jpeg;base64,' + pages[0];
+        document.getElementById('analyze-preview-img').src = previewData;
+        document.getElementById('analyze-preview-name').textContent = `${file.name} — 전체 ${totalPages}페이지`;
+        document.getElementById('analyze-preview-wrap').classList.add('show');
+
+        if (pdf.numPages > 10) {
+          thumbContainer.insertAdjacentHTML('afterend', '<div style="font-size:0.78rem;color:#B45309;margin-top:8px;">⚠️ 최대 10페이지까지 분석 가능 (나머지 페이지 제외)</div>');
+        }
 
       } catch (err) {
         thumbContainer.innerHTML = `<div style="font-size:0.85rem;color:#ef4444;">PDF 읽기 실패: ${err.message}</div>`;
       }
     }
 
-    async function selectPdfPage(pdf, pageNum, thumbEl, fileName) {
-      document.querySelectorAll('.pdf-thumb').forEach(t => t.classList.remove('selected'));
-      thumbEl.classList.add('selected');
-
-      const page = await pdf.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 2.0 });
-      const canvas = document.createElement('canvas');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-
-      // 1200px 제한 압축
-      const MAX = 1200;
-      const outCanvas = document.createElement('canvas');
-      let w = canvas.width, h = canvas.height;
-      if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
-      outCanvas.width = w;
-      outCanvas.height = h;
-      outCanvas.getContext('2d').drawImage(canvas, 0, 0, w, h);
-      const compressed = outCanvas.toDataURL('image/jpeg', 0.75);
-
-      analyzeFileData = compressed.split(',')[1];
-      document.getElementById('analyze-preview-img').src = compressed;
-      document.getElementById('analyze-preview-name').textContent = `${fileName} — ${pageNum}페이지`;
-      document.getElementById('analyze-preview-wrap').classList.add('show');
-    }
-
     async function analyzeImage() {
-      if (!analyzeFileData) return;
+      if (!analyzeFileData && !analyzeAllPages) return;
       document.getElementById('analyze-upload-area').style.display = 'none';
       document.getElementById('analyze-loading').classList.add('show');
       document.getElementById('analyze-result').classList.remove('show');
 
       try {
+        const body = analyzeAllPages
+          ? { images: analyzeAllPages, mimeType: analyzeMimeType }
+          : { imageBase64: analyzeFileData, mimeType: analyzeMimeType };
+
         const res = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: analyzeFileData, mimeType: analyzeMimeType })
+          body: JSON.stringify(body)
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || '오류 발생');
@@ -1267,6 +1271,7 @@
 
     function resetAnalyze() {
       analyzeFileData = null;
+      analyzeAllPages = null;
       document.getElementById('analyze-upload-area').style.display = 'block';
       document.getElementById('analyze-preview-wrap').classList.remove('show');
       document.getElementById('analyze-result').classList.remove('show');

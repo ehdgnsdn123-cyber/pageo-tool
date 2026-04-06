@@ -30,7 +30,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 6000,
+        max_tokens: 8000,
         messages: [
           {
             role: 'user',
@@ -149,11 +149,21 @@ export default async function handler(req, res) {
     let result;
     try {
       const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-      const jsonStr = codeBlock ? codeBlock[1].trim() : text.match(/\{[\s\S]*\}/)?.[0];
+      let jsonStr = codeBlock ? codeBlock[1].trim() : text.match(/\{[\s\S]*\}/)?.[0];
       if (!jsonStr) return res.status(500).json({ error: '응답 파싱 오류' });
-      result = JSON.parse(jsonStr);
+
+      // JSON이 잘렸을 경우 마지막 완전한 필드까지만 복구
+      try {
+        result = JSON.parse(jsonStr);
+      } catch {
+        // 잘린 JSON 복구 시도: 마지막 완전한 키-값 이후를 닫아줌
+        const truncated = jsonStr.replace(/,?\s*"[^"]*"\s*:\s*[^,}\]]*$/, '')
+                                  .replace(/,\s*$/, '');
+        const fixed = truncated + (truncated.includes('{') ? '}' : '');
+        result = JSON.parse(fixed);
+      }
     } catch {
-      return res.status(500).json({ error: '다시 시도해주세요.' });
+      return res.status(500).json({ error: '응답이 너무 깁니다. 페이지 수를 줄이거나 다시 시도해주세요.' });
     }
 
     return res.status(200).json(result);

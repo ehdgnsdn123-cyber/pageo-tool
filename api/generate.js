@@ -31,24 +31,24 @@ export default async function handler(req, res) {
 타겟: ${target || '미입력'}
 제품 특징: ${features || '미입력'}
 
-아래 JSON 형식으로만 답변해주세요:
+아래 JSON 형식으로만 답변해주세요. 카피 문구에 큰따옴표(")를 사용하지 말고 작은따옴표(')나 한글 따옴표를 사용하세요:
 {
-  "headline": "메인 헤드라인 (20자 이내)",
-  "subheadline": "서브 헤드라인 (30자 이내)",
+  "headline": "메인 헤드라인 20자 이내",
+  "subheadline": "서브 헤드라인 30자 이내",
   "sections": [
     {
       "order": 1,
       "name": "섹션 이름",
-      "purpose": "이 섹션의 목적",
-      "copy": "실제 카피 문구",
-      "layout_tip": "디자인/레이아웃 팁"
+      "purpose": "섹션 목적",
+      "copy": "카피 문구",
+      "layout_tip": "레이아웃 팁"
     }
   ],
   "color_direction": "추천 컬러 방향",
-  "design_tip": "전체 디자인 방향 팁"
+  "design_tip": "전체 디자인 방향"
 }
 
-섹션은 6~8개로 구성하고, 실제로 바로 쓸 수 있는 카피를 작성해주세요.`
+섹션은 6~8개로 구성하세요.`
           }
         ]
       })
@@ -61,12 +61,17 @@ export default async function handler(req, res) {
     }
 
     const text = data.content[0].text;
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return res.status(500).json({ error: '응답 파싱 오류' });
+
+    let result;
+    try {
+      const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+      const jsonStr = codeBlock ? codeBlock[1].trim() : text.match(/\{[\s\S]*\}/)?.[0];
+      if (!jsonStr) return res.status(500).json({ error: '응답 파싱 오류' });
+      result = JSON.parse(jsonStr);
+    } catch {
+      return res.status(500).json({ error: '다시 시도해주세요.' });
     }
 
-    const result = JSON.parse(jsonMatch[0]);
     return res.status(200).json(result);
 
   } catch (error) {

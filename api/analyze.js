@@ -35,19 +35,27 @@ export default async function handler(req, res) {
               {
                 type: 'text',
                 text: `이 이미지는 한국 이커머스 상세페이지입니다.
-아래 9개 구성요소 기준으로 분석해주세요:
+아래 9개 구성요소 기준으로 각 섹션이 어떤 내용으로 구성되어 있는지 자세하게 분석해주세요:
 1.인트로 2.메인페이지 3.특장점 4.인증/권위입증 5.비교 6.리뷰 7.브랜드소개/스토리 8.이벤트/배너 9.자주묻는질문
 
 반드시 아래 JSON 형식으로만 답변하세요. 문자열 안에 큰따옴표 사용 금지:
 {
   "industry": "업종 추정",
+  "product": "제품 추정",
+  "layout_style": "레이아웃 스타일",
+  "color_tone": "컬러 톤 분석",
   "sections_found": ["발견된 섹션1", "발견된 섹션2"],
   "main_section": "이 이미지의 주요 섹션",
+  "section_details": [
+    {
+      "name": "섹션 이름",
+      "found": true,
+      "content": "이 섹션에서 어떤 내용을 어떻게 표현했는지 자세한 설명",
+      "technique": "사용된 디자인 기법이나 카피 전략"
+    }
+  ],
   "good_points": ["잘된 점1", "잘된 점2", "잘된 점3"],
-  "reference_points": ["참고할 점1", "참고할 점2"],
-  "color_tone": "컬러 톤 분석",
-  "layout_style": "레이아웃 스타일",
-  "overall_score": 85
+  "reference_points": ["참고할 점1", "참고할 점2"]
 }`
               }
             ]

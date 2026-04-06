@@ -386,15 +386,25 @@
       color: #fff;
       border-radius: var(--radius) var(--radius) 0 0;
       padding: 24px 28px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
     }
-    .analyze-score-num { font-size: 2.5rem; font-weight: 700; }
-    .analyze-score-label { font-size: 0.8rem; opacity: 0.8; }
-    .analyze-score-info { font-size: 0.9rem; }
-    .analyze-score-industry { font-size: 1.1rem; font-weight: 600; margin-bottom: 4px; }
+    .analyze-score-industry { font-size: 1.2rem; font-weight: 700; margin-bottom: 4px; }
     .analyze-score-style { font-size: 0.85rem; opacity: 0.85; }
+
+    .section-detail-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-bottom: 12px;
+    }
+    .section-detail-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .section-detail-num { width: 26px; height: 26px; background: var(--accent); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
+    .section-detail-name { font-size: 0.95rem; font-weight: 600; }
+    .section-detail-badge { margin-left: auto; font-size: 0.72rem; padding: 3px 10px; border-radius: 50px; }
+    .section-detail-badge.found { background: #DCFCE7; color: #16A34A; }
+    .section-detail-badge.not-found { background: var(--bg); color: var(--text-muted); }
+    .section-detail-content { font-size: 0.875rem; line-height: 1.7; color: var(--text); background: var(--accent-light); padding: 12px 14px; border-radius: 8px; margin-bottom: 8px; }
+    .section-detail-technique { font-size: 0.8rem; color: var(--text-muted); display: flex; gap: 6px; }
+    .section-detail-technique::before { content: "💡"; flex-shrink: 0; }
 
     .analyze-result-body {
       background: #fff;
@@ -578,20 +588,18 @@
     <!-- 결과 -->
     <div class="analyze-result" id="analyze-result">
       <div class="analyze-score-wrap">
-        <div>
-          <div class="analyze-score-industry" id="analyze-industry"></div>
-          <div class="analyze-score-style" id="analyze-style"></div>
-        </div>
-        <div style="text-align:right">
-          <div class="analyze-score-num" id="analyze-score"></div>
-          <div class="analyze-score-label">종합 점수</div>
-        </div>
+        <div class="analyze-score-industry" id="analyze-industry"></div>
+        <div class="analyze-score-style" id="analyze-style"></div>
       </div>
       <div class="analyze-result-body">
 
         <!-- 발견된 섹션 태그 -->
         <div style="font-size:0.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px;">발견된 섹션</div>
         <div class="analyze-section-tags" id="analyze-section-tags"></div>
+
+        <!-- 섹션별 상세 분석 -->
+        <div style="font-size:0.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:12px;">섹션별 상세 분석</div>
+        <div id="analyze-section-details"></div>
 
         <!-- 잘된점 / 참고할점 -->
         <div class="analyze-points">
@@ -919,15 +927,33 @@
     }
 
     function showAnalyzeResult(data) {
-      document.getElementById('analyze-industry').textContent = data.industry || '';
+      document.getElementById('analyze-industry').textContent = `${data.industry || ''} · ${data.product || ''}`;
       document.getElementById('analyze-style').textContent = `${data.layout_style || ''} · ${data.color_tone || ''}`;
-      document.getElementById('analyze-score').textContent = (data.overall_score || 0) + '점';
 
       // 섹션 태그
       const tags = (data.sections_found || []).map(s =>
         `<span class="analyze-tag${s === data.main_section ? ' main' : ''}">${s}</span>`
       ).join('');
       document.getElementById('analyze-section-tags').innerHTML = tags;
+
+      // 섹션별 상세 분석
+      const allSections = ['인트로','메인페이지','특장점','인증/권위입증','비교','리뷰','브랜드소개/스토리','이벤트/배너','자주묻는질문'];
+      const details = data.section_details || [];
+      document.getElementById('analyze-section-details').innerHTML = allSections.map((sName, i) => {
+        const detail = details.find(d => d.name && d.name.includes(sName.split('/')[0]));
+        const found = detail ? detail.found !== false : (data.sections_found || []).some(s => s.includes(sName.split('/')[0]));
+        return `
+          <div class="section-detail-card">
+            <div class="section-detail-header">
+              <div class="section-detail-num">${i+1}</div>
+              <div class="section-detail-name">${sName}</div>
+              <span class="section-detail-badge ${found ? 'found' : 'not-found'}">${found ? '발견됨' : '없음'}</span>
+            </div>
+            ${detail && detail.content ? `<div class="section-detail-content">${detail.content}</div>` : ''}
+            ${detail && detail.technique ? `<div class="section-detail-technique">${detail.technique}</div>` : ''}
+          </div>
+        `;
+      }).join('');
 
       // 잘된 점
       document.getElementById('analyze-good').innerHTML = (data.good_points || []).map(p =>

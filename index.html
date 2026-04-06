@@ -456,6 +456,19 @@
     .color-chip-role { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; }
     .color-chip-name { font-size: 0.8rem; font-weight: 500; color: var(--text); }
 
+    .analyze-tags-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .analyze-tag-badge { font-size: 0.78rem; font-weight: 600; padding: 4px 12px; border-radius: 50px; background: #EFF6FF; color: #2563EB; border: 1px solid #BFDBFE; }
+    .analyze-insight-wrap { background: linear-gradient(135deg, #F8F7FF 0%, #EEF2FF 100%); border: 1px solid #C7D2FE; border-radius: 12px; padding: 20px 22px; margin-bottom: 20px; }
+    .analyze-insight-item { display: flex; gap: 10px; font-size: 0.875rem; line-height: 1.7; color: var(--text); margin-bottom: 10px; }
+    .analyze-insight-item:last-child { margin-bottom: 0; }
+    .analyze-insight-num { width: 22px; height: 22px; background: var(--accent); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.68rem; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+    .planning-brief-wrap { background: #FFFBEB; border: 1.5px solid #FDE68A; border-radius: 12px; padding: 20px 22px; margin-bottom: 20px; }
+    .planning-brief-title { font-size: 0.78rem; font-weight: 700; color: #92400E; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px; }
+    .planning-brief-grid { display: grid; gap: 10px; }
+    .planning-brief-item { background: #fff; border-radius: 8px; padding: 12px 14px; border: 1px solid #FDE68A; }
+    .planning-brief-label { font-size: 0.72rem; font-weight: 700; color: #B45309; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .planning-brief-value { font-size: 0.875rem; line-height: 1.6; color: var(--text); }
+
     .btn-reanalyze {
       margin-top: 20px;
       padding: 10px 24px;
@@ -619,8 +632,21 @@
 
         <!-- 기획 분석 -->
         <div class="analyze-group" id="analyze-planning-group">
-          <div class="analyze-group-title">기획 분석</div>
+          <div class="analyze-group-title">기획 분석 (AIDA)</div>
           <div class="analyze-grid" id="analyze-planning-detail"></div>
+        </div>
+
+        <!-- 카피라이팅 분석 -->
+        <div class="analyze-group" id="analyze-copy-group">
+          <div class="analyze-group-title">카피라이팅 분석</div>
+          <div class="analyze-grid" id="analyze-copy-detail"></div>
+        </div>
+
+        <!-- 설득 기법 -->
+        <div class="analyze-group" id="analyze-persuasion-group">
+          <div class="analyze-group-title">사용된 설득 기법</div>
+          <div class="analyze-tags-row" id="analyze-persuasion-tags"></div>
+          <div class="analyze-grid" id="analyze-persuasion-detail"></div>
         </div>
 
         <!-- 발견된 섹션 태그 -->
@@ -643,6 +669,18 @@
             <div class="analyze-point-title">참고할 점</div>
             <div id="analyze-ref"></div>
           </div>
+        </div>
+
+        <!-- 내 상세페이지 기획서 -->
+        <div class="planning-brief-wrap" id="analyze-brief-wrap">
+          <div class="planning-brief-title">이 레퍼런스 기반 — 내 상세페이지 기획 가이드</div>
+          <div class="planning-brief-grid" id="analyze-brief-detail"></div>
+        </div>
+
+        <!-- 핵심 인사이트 -->
+        <div class="analyze-insight-wrap" id="analyze-insight-wrap">
+          <div class="analyze-group-title" style="margin-bottom:12px;">이 상세페이지에서 배울 핵심 인사이트</div>
+          <div id="analyze-insights"></div>
         </div>
 
         <button class="btn-reanalyze" onclick="resetAnalyze()">← 다른 이미지 분석</button>
@@ -915,14 +953,14 @@
       const objectUrl = URL.createObjectURL(file);
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX = 600;
+        const MAX = 1200;
         let w = img.width, h = img.height;
         if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
         if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
         canvas.width = w;
         canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        const compressed = canvas.toDataURL('image/jpeg', 0.5);
+        const compressed = canvas.toDataURL('image/jpeg', 0.75);
         analyzeFileData = compressed.split(',')[1];
         document.getElementById('analyze-preview-img').src = compressed;
         document.getElementById('analyze-preview-name').textContent = file.name;
@@ -965,6 +1003,8 @@
         { role: '메인', value: cs.main_color },
         { role: '서브', value: cs.sub_color },
         { role: '강조', value: cs.accent_color },
+        { role: '배경', value: cs.background_color },
+        { role: '텍스트', value: cs.text_color },
       ];
       document.getElementById('analyze-color-chips').innerHTML = colorRoles.filter(c => c.value).map(c => {
         const hexMatch = c.value.match(/#[0-9A-Fa-f]{3,6}/);
@@ -979,7 +1019,10 @@
           </div>`;
       }).join('');
       document.getElementById('analyze-color-detail').innerHTML = [
-        { label: '컬러 감성 · 브랜드 방향', value: cs.color_emotion },
+        { label: '컬러 비율', value: cs.color_ratio },
+        { label: '컬러 하모니 타입', value: cs.color_harmony },
+        { label: '심리적 효과', value: cs.color_psychology },
+        { label: '브랜드 감성', value: cs.color_emotion },
         { label: '구매 심리 전략', value: cs.color_strategy },
       ].filter(i => i.value).map(i => `
         <div class="analyze-grid-item">
@@ -990,11 +1033,16 @@
       // 디자인 시스템
       const ds = data.design_system || {};
       document.getElementById('analyze-design-detail').innerHTML = [
+        { label: '폰트 위계 구조', value: ds.font_hierarchy },
         { label: '폰트 스타일', value: ds.font_style },
+        { label: '강조 기법', value: ds.font_emphasis },
         { label: '레이아웃 패턴', value: ds.layout_pattern },
-        { label: '여백 활용', value: ds.spacing },
+        { label: '시선 흐름 패턴', value: ds.eye_flow },
+        { label: '그리드 구조', value: ds.grid_structure },
+        { label: '여백 전략', value: ds.spacing_strategy },
         { label: '이미지 사용 방식', value: ds.image_style },
         { label: '시각적 위계', value: ds.visual_hierarchy },
+        { label: '디자인 무드', value: ds.design_mood },
       ].filter(i => i.value).map(i => `
         <div class="analyze-grid-item">
           <div class="analyze-grid-label">${i.label}</div>
@@ -1006,9 +1054,45 @@
       document.getElementById('analyze-planning-detail').innerHTML = [
         { label: '타겟 고객', value: pa.target_customer },
         { label: '핵심 메시지', value: pa.core_message },
+        { label: 'AIDA 분석', value: pa.aida_analysis },
         { label: '고객 심리 흐름', value: pa.customer_flow },
         { label: '구매 전환 전략', value: pa.conversion_strategy },
         { label: '경쟁 차별화', value: pa.differentiation },
+        { label: '아쉬운 점 · 보완 포인트', value: pa.weakness },
+      ].filter(i => i.value).map(i => `
+        <div class="analyze-grid-item">
+          <div class="analyze-grid-label">${i.label}</div>
+          <div class="analyze-grid-value">${i.value}</div>
+        </div>`).join('');
+
+      // 카피라이팅 분석
+      const ca = data.copywriting_analysis || {};
+      const emotionTriggers = (ca.emotional_triggers || []).join(' · ');
+      document.getElementById('analyze-copy-detail').innerHTML = [
+        { label: '헤드라인 공식', value: ca.headline_formula },
+        { label: '감정 트리거 키워드', value: emotionTriggers },
+        { label: '고통 표현 방식', value: ca.pain_point_expression },
+        { label: '혜택 표현 방식', value: ca.benefit_expression },
+        { label: 'CTA 전략', value: ca.cta_strategy },
+        { label: '톤앤매너', value: ca.tone_of_voice },
+      ].filter(i => i.value).map(i => `
+        <div class="analyze-grid-item">
+          <div class="analyze-grid-label">${i.label}</div>
+          <div class="analyze-grid-value">${i.value}</div>
+        </div>`).join('');
+
+      // 설득 기법
+      const pt = data.persuasion_techniques || {};
+      const usedTechs = pt.used_techniques || [];
+      document.getElementById('analyze-persuasion-tags').innerHTML = usedTechs.map(t =>
+        `<span class="analyze-tag-badge">${t}</span>`
+      ).join('');
+      document.getElementById('analyze-persuasion-detail').innerHTML = [
+        { label: '사회적 증거', value: pt.social_proof },
+        { label: '권위 · 전문성', value: pt.authority },
+        { label: '희소성 · 긴박감', value: pt.scarcity },
+        { label: '상호성 (무료/보너스)', value: pt.reciprocity },
+        { label: '신뢰 구축 요소', value: pt.trust_elements },
       ].filter(i => i.value).map(i => `
         <div class="analyze-grid-item">
           <div class="analyze-grid-label">${i.label}</div>
@@ -1037,6 +1121,8 @@
             ${detail && detail.content ? `<div class="section-detail-content">${detail.content}</div>` : ''}
             ${detail && detail.planning_intent ? `<div class="section-detail-technique">기획 의도: ${detail.planning_intent}</div>` : ''}
             ${detail && detail.design_technique ? `<div class="section-detail-technique">디자인 기법: ${detail.design_technique}</div>` : ''}
+            ${detail && detail.copy_technique ? `<div class="section-detail-technique">카피 기법: ${detail.copy_technique}</div>` : ''}
+            ${detail && detail.improvement ? `<div class="section-detail-technique" style="color:#EA580C;">개선 제안: ${detail.improvement}</div>` : ''}
           </div>
         `;
       }).join('');
@@ -1050,6 +1136,30 @@
       document.getElementById('analyze-ref').innerHTML = (data.reference_points || []).map(p =>
         `<div class="analyze-point-item">${p}</div>`
       ).join('');
+
+      // 내 상세페이지 기획 가이드
+      const brief = data.planning_brief || {};
+      document.getElementById('analyze-brief-detail').innerHTML = [
+        { label: '타겟 고객 정의', value: brief.target_definition },
+        { label: '핵심 메시지 방향', value: brief.message_direction },
+        { label: '인트로 · 헤드라인 제안', value: brief.intro_suggestion },
+        { label: '특장점 구성 방향', value: brief.features_direction },
+        { label: '신뢰 구축 전략', value: brief.trust_strategy },
+        { label: '구매 전환 장치', value: brief.conversion_tactics },
+        { label: '추천 섹션 순서', value: brief.recommended_flow },
+        { label: '카피 톤앤매너', value: brief.copy_tone },
+      ].filter(i => i.value).map(i => `
+        <div class="planning-brief-item">
+          <div class="planning-brief-label">${i.label}</div>
+          <div class="planning-brief-value">${i.value}</div>
+        </div>`).join('');
+
+      // 핵심 인사이트
+      document.getElementById('analyze-insights').innerHTML = (data.key_learnings || []).map((l, i) => `
+        <div class="analyze-insight-item">
+          <div class="analyze-insight-num">${i+1}</div>
+          <div>${l}</div>
+        </div>`).join('');
 
       document.getElementById('analyze-result').classList.add('show');
     }

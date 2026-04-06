@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PageO Tool | 내부 작업 도구</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --accent: #2C4A6E;
+      --accent-light: #EBF0F7;
+      --bg: #F7F6F3;
+      --bg-card: #FFFFFF;
+      --text: #1A1A1A;
+      --text-muted: #6B7280;
+      --border: #E4E6EA;
+      --radius: 12px;
+      --font: 'Noto Sans KR', sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* 헤더 */
+    header {
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo { font-size: 1rem; font-weight: 700; }
+    .logo span { color: var(--accent); }
+
+    /* 탭 */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--bg);
+      padding: 4px;
+      border-radius: 50px;
+    }
+    .tab {
+      padding: 6px 18px;
+      border-radius: 50px;
+      border: none;
+      background: none;
+      font-family: var(--font);
+      font-size: 0.85rem;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: background 0.15s, color 0.15s;
+    }
+    .tab.active { background: #fff; color: var(--accent); font-weight: 500; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+
+    /* 페이지 */
+    .page { display: none; padding: 32px; max-width: 900px; margin: 0 auto; }
+    .page.active { display: block; }
+
+    /* AI 생성 페이지 */
+    .page-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 6px; }
+    .page-desc { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 28px; }
+
+    .form-card {
+      background: #fff;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 28px;
+      margin-bottom: 20px;
+    }
+    .form-card-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: var(--accent);
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-label { font-size: 0.82rem; font-weight: 500; color: var(--text-muted); }
+    .form-input, .form-select, .form-textarea {
+      font-family: var(--font);
+      font-size: 0.9rem;
+      padding: 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.2s;
+      color: var(--text);
+      background: #fff;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--accent); }
+    .form-textarea { resize: vertical; min-height: 90px; }
+
+    .btn-generate {
+      width: 100%;
+      padding: 14px;
+      background: var(--accent);
+      color: #fff;
+      font-family: var(--font);
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+      margin-top: 8px;
+    }
+    .btn-generate:hover { background: #3D6494; transform: translateY(-1px); }
+    .btn-generate:active { transform: scale(0.99); }
+    .btn-generate:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    /* 로딩 */
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 48px;
+      background: #fff;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+    .loading.show { display: block; }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid var(--accent-light);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-size: 0.9rem; color: var(--text-muted); }
+
+    /* 결과 */
+    .result { display: none; }
+    .result.show { display: block; }
+
+    .result-header {
+      background: var(--accent);
+      color: #fff;
+      border-radius: var(--radius) var(--radius) 0 0;
+      padding: 24px 28px;
+    }
+    .result-headline { font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; }
+    .result-subheadline { font-size: 0.9rem; opacity: 0.85; }
+
+    .result-body { background: #fff; border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius) var(--radius); padding: 24px 28px; }
+
+    .result-meta {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 24px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .result-meta-item { display: flex; flex-direction: column; gap: 4px; }
+    .result-meta-label { font-size: 0.72rem; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; }
+    .result-meta-value { font-size: 0.9rem; font-weight: 500; }
+
+    .sections-title { font-size: 0.9rem; font-weight: 700; margin-bottom: 16px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+    .section-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 12px;
+      transition: box-shadow 0.2s;
+    }
+    .section-card:hover { box-shadow: 0 4px 12px rgba(44,74,110,0.08); }
+    .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .section-num {
+      width: 28px; height: 28px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.78rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .section-name { font-size: 0.95rem; font-weight: 600; }
+    .section-purpose { font-size: 0.78rem; color: var(--text-muted); margin-left: auto; background: var(--bg); padding: 3px 10px; border-radius: 50px; }
+    .section-copy {
+      font-size: 0.9rem;
+      color: var(--text);
+      background: var(--accent-light);
+      padding: 12px 14px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      line-height: 1.6;
+    }
+    .section-tip { font-size: 0.8rem; color: var(--text-muted); display: flex; gap: 6px; align-items: flex-start; }
+    .section-tip::before { content: "💡"; flex-shrink: 0; }
+
+    .btn-reset {
+      margin-top: 20px;
+      padding: 10px 24px;
+      border-radius: 50px;
+      border: 1.5px solid var(--border);
+      background: none;
+      font-family: var(--font);
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-reset:hover { background: var(--bg); }
+
+    /* 레퍼런스 갤러리 탭 */
+    .gallery-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .btn-upload {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-family: var(--font);
+      font-size: 0.875rem;
+      font-weight: 500;
+      padding: 10px 20px;
+      border-radius: 50px;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+    }
+    .btn-upload:hover { background: #3D6494; transform: translateY(-1px); }
+
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 36px;
+      text-align: center;
+      background: #fff;
+      margin-bottom: 24px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: var(--accent-light); }
+    .upload-zone-icon { font-size: 2rem; margin-bottom: 10px; }
+    .upload-zone-text { font-size: 0.9rem; font-weight: 500; margin-bottom: 4px; }
+    .upload-zone-sub { font-size: 0.78rem; color: var(--text-muted); }
+    #file-input { display: none; }
+
+    /* 카테고리 필터 */
+    .filter-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .filter-tab {
+      padding: 6px 16px;
+      border-radius: 50px;
+      border: 1.5px solid var(--border);
+      background: #fff;
+      font-family: var(--font);
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: var(--text-muted);
+    }
+    .filter-tab.active { border-color: var(--accent); background: var(--accent-light); color: var(--accent); font-weight: 500; }
+
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 14px;
+    }
+    .card {
+      background: #fff;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(44,74,110,0.1); }
+    .card-img { width: 100%; aspect-ratio: 3/4; object-fit: cover; object-position: top; cursor: pointer; background: var(--accent-light); }
+    .card-body { padding: 10px 12px; }
+    .card-name { font-size: 0.8rem; font-weight: 500; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-footer { display: flex; align-items: center; justify-content: space-between; }
+    .card-tag { font-size: 0.7rem; color: var(--accent); background: var(--accent-light); padding: 2px 8px; border-radius: 50px; }
+    .card-delete { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; transition: background 0.15s, color 0.15s; }
+    .card-delete:hover { background: #FEE2E2; color: #DC2626; }
+
+    .empty { text-align: center; padding: 60px 0; color: var(--text-muted); }
+    .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+    .empty-text { font-size: 0.9rem; line-height: 1.8; }
+
+    /* 라이트박스 */
+    .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; }
+    .lightbox.open { display: flex; }
+    .lightbox-img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 8px; }
+    .lightbox-close { position: fixed; top: 20px; right: 24px; background: rgba(255,255,255,0.2); border: none; color: #fff; font-size: 1.5rem; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .lightbox-close:hover { background: rgba(255,255,255,0.35); }
+
+    /* 모달 */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 500; justify-content: center; align-items: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: #fff; border-radius: var(--radius); padding: 28px; width: 360px; max-width: 90vw; }
+    .modal-title { font-size: 1rem; font-weight: 700; margin-bottom: 20px; }
+    .modal-preview { width: 100%; height: 130px; object-fit: cover; object-position: top; border-radius: 8px; margin-bottom: 16px; background: var(--accent-light); }
+    .modal-label { font-size: 0.82rem; font-weight: 500; margin-bottom: 6px; color: var(--text-muted); }
+    .modal-input, .modal-select { width: 100%; font-family: var(--font); font-size: 0.9rem; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px; outline: none; margin-bottom: 16px; transition: border-color 0.2s; }
+    .modal-input:focus, .modal-select:focus { border-color: var(--accent); }
+    .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; }
+    .btn-cancel { padding: 10px 20px; border-radius: 50px; border: 1.5px solid var(--border); background: none; font-family: var(--font); font-size: 0.875rem; cursor: pointer; }
+    .btn-confirm { padding: 10px 20px; border-radius: 50px; border: none; background: var(--accent); color: #fff; font-family: var(--font); font-size: 0.875rem; font-weight: 500; cursor: pointer; }
+    .btn-confirm:hover { background: #3D6494; }
+
+    @media (max-width: 640px) {
+      .page { padding: 20px 16px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .gallery { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">Page<span>O</span> Tool</div>
+    <div class="tabs">
+      <button class="tab active" onclick="showPage('ai', this)">AI 레이아웃 생성</button>
+      <button class="tab" onclick="showPage('gallery', this)">레퍼런스 갤러리</button>
+    </div>
+  </header>
+
+  <!-- AI 레이아웃 생성 페이지 -->
+  <div class="page active" id="page-ai">
+
+    <p class="page-title">AI 상세페이지 레이아웃 생성</p>
+    <p class="page-desc">제품 정보를 입력하면 AI가 섹션 구성과 카피를 자동으로 만들어드려요</p>
+
+    <!-- 입력 폼 -->
+    <div id="form-section">
+      <div class="form-card">
+        <div class="form-card-title">제품 정보 입력</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">제품명 *</label>
+            <input class="form-input" id="product" type="text" placeholder="예: 라네즈 나이트 앰플" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">업종 *</label>
+            <select class="form-select" id="industry">
+              <option value="">선택하세요</option>
+              <option value="뷰티/화장품">뷰티/화장품</option>
+              <option value="식품/건강기능식품">식품/건강기능식품</option>
+              <option value="패션/의류">패션/의류</option>
+              <option value="전자제품/가전">전자제품/가전</option>
+              <option value="생활/주방용품">생활/주방용품</option>
+              <option value="유아/교육">유아/교육</option>
+              <option value="병원/의료">병원/의료</option>
+              <option value="온라인 강의/디지털">온라인 강의/디지털</option>
+              <option value="기타">기타</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">타겟 고객</label>
+            <input class="form-input" id="target" type="text" placeholder="예: 30대 직장 여성, 피부 트러블 고민" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">가격대</label>
+            <input class="form-input" id="price" type="text" placeholder="예: 35,000원" />
+          </div>
+          <div class="form-group full">
+            <label class="form-label">제품 특징 / 핵심 강점</label>
+            <textarea class="form-textarea" id="features" placeholder="예: 히알루론산 5중 복합체, 수분 72시간 지속, 자기 전 10분이면 OK"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-generate" id="btn-generate" onclick="generateLayout()">
+        ✨ AI 레이아웃 생성하기
+      </button>
+    </div>
+
+    <!-- 로딩 -->
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <div class="loading-text">AI가 레이아웃을 만들고 있어요...<br>잠깐만 기다려주세요!</div>
+    </div>
+
+    <!-- 결과 -->
+    <div class="result" id="result">
+      <div class="result-header">
+        <div class="result-headline" id="result-headline"></div>
+        <div class="result-subheadline" id="result-subheadline"></div>
+      </div>
+      <div class="result-body">
+        <div class="result-meta" id="result-meta"></div>
+        <div class="sections-title">섹션 구성</div>
+        <div id="result-sections"></div>
+        <button class="btn-reset" onclick="resetForm()">← 다시 만들기</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 레퍼런스 갤러리 페이지 -->
+  <div class="page" id="page-gallery">
+
+    <div class="gallery-header">
+      <div>
+        <p class="page-title">레퍼런스 갤러리</p>
+        <p class="page-desc" style="margin:0">작업 레퍼런스를 모아두고 카테고리별로 관리하세요</p>
+      </div>
+      <button class="btn-upload" onclick="document.getElementById('file-input').click()">+ 이미지 추가</button>
+    </div>
+
+    <input type="file" id="file-input" multiple accept="image/*" onchange="handleFiles(this.files)" />
+
+    <div class="upload-zone" id="upload-zone"
+      onclick="document.getElementById('file-input').click()"
+      ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)"
+    >
+      <div class="upload-zone-icon">🖼️</div>
+      <div class="upload-zone-text">이미지 드래그 또는 클릭해서 업로드</div>
+      <div class="upload-zone-sub">JPG, PNG, GIF 지원 · 여러 장 한번에 가능</div>
+    </div>
+
+    <div class="filter-tabs" id="filter-tabs">
+      <button class="filter-tab active" onclick="filterCat('전체', this)">전체 <span id="fc-전체">0</span></button>
+      <button class="filter-tab" onclick="filterCat('뷰티/화장품', this)">뷰티/화장품 <span id="fc-뷰티/화장품">0</span></button>
+      <button class="filter-tab" onclick="filterCat('식품/건강', this)">식품/건강 <span id="fc-식품/건강">0</span></button>
+      <button class="filter-tab" onclick="filterCat('패션/의류', this)">패션/의류 <span id="fc-패션/의류">0</span></button>
+      <button class="filter-tab" onclick="filterCat('전자제품', this)">전자제품 <span id="fc-전자제품">0</span></button>
+      <button class="filter-tab" onclick="filterCat('병원/의료', this)">병원/의료 <span id="fc-병원/의료">0</span></button>
+      <button class="filter-tab" onclick="filterCat('기타', this)">기타 <span id="fc-기타">0</span></button>
+    </div>
+
+    <div class="gallery" id="gallery"></div>
+    <div class="empty" id="empty-state">
+      <div class="empty-icon">📂</div>
+      <div class="empty-text">아직 레퍼런스가 없어요<br>이미지를 업로드해서 시작하세요!</div>
+    </div>
+
+  </div>
+
+  <!-- 라이트박스 -->
+  <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+    <img class="lightbox-img" id="lightbox-img" src="" alt="" onclick="event.stopPropagation()" />
+  </div>
+
+  <!-- 모달 -->
+  <div class="modal-overlay" id="modal" onclick="closeModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title">레퍼런스 정보 입력</div>
+      <img class="modal-preview" id="modal-preview" src="" alt="" />
+      <div class="modal-label">이름 (선택)</div>
+      <input class="modal-input" id="modal-name" type="text" placeholder="예: 라네즈 앰플 상세페이지" />
+      <div class="modal-label">카테고리</div>
+      <select class="modal-select" id="modal-category">
+        <option value="뷰티/화장품">뷰티/화장품</option>
+        <option value="식품/건강">식품/건강</option>
+        <option value="패션/의류">패션/의류</option>
+        <option value="전자제품">전자제품</option>
+        <option value="병원/의료">병원/의료</option>
+        <option value="기타">기타</option>
+      </select>
+      <div class="modal-buttons">
+        <button class="btn-cancel" onclick="closeModal()">취소</button>
+        <button class="btn-confirm" onclick="confirmUpload()">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================
+    // 탭 전환
+    // ============================================================
+    function showPage(id, btn) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('page-' + id).classList.add('active');
+      btn.classList.add('active');
+    }
+
+    // ============================================================
+    // AI 레이아웃 생성
+    // ============================================================
+    async function generateLayout() {
+      const product = document.getElementById('product').value.trim();
+      const industry = document.getElementById('industry').value;
+      const target = document.getElementById('target').value.trim();
+      const features = document.getElementById('features').value.trim();
+      const price = document.getElementById('price').value.trim();
+
+      if (!product) { alert('제품명을 입력해주세요!'); return; }
+      if (!industry) { alert('업종을 선택해주세요!'); return; }
+
+      document.getElementById('form-section').style.display = 'none';
+      document.getElementById('loading').classList.add('show');
+      document.getElementById('result').classList.remove('show');
+
+      try {
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product, industry, target, features, price })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.error || '오류가 발생했어요');
+
+        showResult(data, { product, industry, target, price });
+
+      } catch (err) {
+        alert('오류: ' + err.message);
+        document.getElementById('form-section').style.display = 'block';
+      } finally {
+        document.getElementById('loading').classList.remove('show');
+      }
+    }
+
+    function showResult(data, info) {
+      document.getElementById('result-headline').textContent = data.headline;
+      document.getElementById('result-subheadline').textContent = data.subheadline;
+
+      document.getElementById('result-meta').innerHTML = `
+        <div class="result-meta-item"><span class="result-meta-label">제품</span><span class="result-meta-value">${info.product}</span></div>
+        <div class="result-meta-item"><span class="result-meta-label">업종</span><span class="result-meta-value">${info.industry}</span></div>
+        ${info.target ? `<div class="result-meta-item"><span class="result-meta-label">타겟</span><span class="result-meta-value">${info.target}</span></div>` : ''}
+        ${info.price ? `<div class="result-meta-item"><span class="result-meta-label">가격</span><span class="result-meta-value">${info.price}</span></div>` : ''}
+        <div class="result-meta-item"><span class="result-meta-label">컬러 방향</span><span class="result-meta-value">${data.color_direction}</span></div>
+      `;
+
+      document.getElementById('result-sections').innerHTML = data.sections.map(s => `
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-num">${s.order}</div>
+            <div class="section-name">${s.name}</div>
+            <div class="section-purpose">${s.purpose}</div>
+          </div>
+          <div class="section-copy">${s.copy}</div>
+          <div class="section-tip">${s.layout_tip}</div>
+        </div>
+      `).join('');
+
+      document.getElementById('result').classList.add('show');
+    }
+
+    function resetForm() {
+      document.getElementById('form-section').style.display = 'block';
+      document.getElementById('result').classList.remove('show');
+    }
+
+    // ============================================================
+    // 레퍼런스 갤러리
+    // ============================================================
+    let references = JSON.parse(localStorage.getItem('pageo-refs') || '[]');
+    let currentCat = '전체';
+    let pendingFiles = [];
+
+    function initGallery() {
+      renderGallery();
+      updateCounts();
+    }
+
+    function handleFiles(files) {
+      if (!files || files.length === 0) return;
+      pendingFiles = Array.from(files);
+      const reader = new FileReader();
+      reader.onload = e => { document.getElementById('modal-preview').src = e.target.result; };
+      reader.readAsDataURL(pendingFiles[0]);
+      document.getElementById('modal-name').value = pendingFiles.length === 1 ? pendingFiles[0].name.replace(/\.[^/.]+$/, '') : '';
+      document.getElementById('modal').classList.add('open');
+    }
+
+    function confirmUpload() {
+      const name = document.getElementById('modal-name').value;
+      const category = document.getElementById('modal-category').value;
+      let done = 0;
+      pendingFiles.forEach((file, i) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          references.push({ id: Date.now() + i, name: name || file.name.replace(/\.[^/.]+$/, ''), category, src: e.target.result, date: new Date().toLocaleDateString('ko-KR') });
+          done++;
+          if (done === pendingFiles.length) { saveRefs(); renderGallery(); updateCounts(); }
+        };
+        reader.readAsDataURL(file);
+      });
+      closeModal();
+      document.getElementById('file-input').value = '';
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.remove('open');
+      pendingFiles = [];
+    }
+
+    function renderGallery() {
+      const gallery = document.getElementById('gallery');
+      const empty = document.getElementById('empty-state');
+      const filtered = currentCat === '전체' ? references : references.filter(r => r.category === currentCat);
+      if (filtered.length === 0) { gallery.innerHTML = ''; empty.style.display = 'block'; return; }
+      empty.style.display = 'none';
+      gallery.innerHTML = filtered.map(r => `
+        <div class="card">
+          <img class="card-img" src="${r.src}" alt="${r.name}" onclick="openLightbox('${r.src}')" />
+          <div class="card-body">
+            <div class="card-name" title="${r.name}">${r.name}</div>
+            <div class="card-footer">
+              <span class="card-tag">${r.category}</span>
+              <button class="card-delete" onclick="deleteRef(${r.id})">삭제</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function filterCat(cat, btn) {
+      currentCat = cat;
+      document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderGallery();
+    }
+
+    function updateCounts() {
+      const cats = ['전체', '뷰티/화장품', '식품/건강', '패션/의류', '전자제품', '병원/의료', '기타'];
+      cats.forEach(cat => {
+        const el = document.getElementById('fc-' + cat);
+        if (el) el.textContent = cat === '전체' ? references.length : references.filter(r => r.category === cat).length;
+      });
+    }
+
+    function deleteRef(id) {
+      if (!confirm('삭제할까요?')) return;
+      references = references.filter(r => r.id !== id);
+      saveRefs(); renderGallery(); updateCounts();
+    }
+
+    function openLightbox(src) { document.getElementById('lightbox-img').src = src; document.getElementById('lightbox').classList.add('open'); }
+    function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+
+    function onDragOver(e) { e.preventDefault(); document.getElementById('upload-zone').classList.add('dragover'); }
+    function onDragLeave() { document.getElementById('upload-zone').classList.remove('dragover'); }
+    function onDrop(e) { e.preventDefault(); document.getElementById('upload-zone').classList.remove('dragover'); handleFiles(e.dataTransfer.files); }
+
+    function saveRefs() { localStorage.setItem('pageo-refs', JSON.stringify(references)); }
+
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeLightbox(); closeModal(); } });
+
+    initGallery();
+  </script>
+
+</body>
+</html>

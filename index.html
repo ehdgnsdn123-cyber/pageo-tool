@@ -1150,6 +1150,11 @@
     }
 
     async function analyzeImage() {
+      // PDF 페이지 선택 상태면 analyzeAllPages 자동 세팅
+      if (!analyzeAllPages && selectedPdfPages.size > 0) {
+        const sortedPages = [...selectedPdfPages].sort((a, b) => a - b);
+        analyzeAllPages = sortedPages.map(p => pdfPageImages[p]);
+      }
       if (!analyzeFileData && !analyzeAllPages) return;
       document.getElementById('analyze-upload-area').style.display = 'none';
       document.getElementById('analyze-loading').classList.add('show');

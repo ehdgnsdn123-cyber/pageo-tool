@@ -599,8 +599,12 @@
 
       <!-- PDF 페이지 선택 -->
       <div id="pdf-page-selector" style="display:none; margin-top:16px;">
-        <div style="font-size:0.85rem; font-weight:600; color:var(--text); margin-bottom:10px;">분석할 페이지를 선택하세요</div>
-        <div id="pdf-thumbnails" style="display:flex; flex-wrap:wrap; gap:10px;"></div>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+          <div style="font-size:0.85rem; font-weight:600; color:var(--text);">분석할 페이지를 선택하세요 <span style="font-weight:400;color:var(--text-muted);">(최대 5페이지)</span></div>
+          <div id="pdf-selected-count" style="font-size:0.8rem; color:var(--accent); font-weight:600;"></div>
+        </div>
+        <div id="pdf-thumbnails" style="display:flex; flex-wrap:wrap; gap:10px; max-height:320px; overflow-y:auto; padding:4px;"></div>
+        <button id="pdf-analyze-btn" onclick="analyzePdfSelected()" style="display:none; margin-top:12px; padding:10px 24px; background:var(--accent); color:#fff; border:none; border-radius:50px; font-family:var(--font); font-size:0.875rem; font-weight:600; cursor:pointer;">선택한 페이지 분석하기</button>
       </div>
 
       <!-- 미리보기 -->
@@ -952,9 +956,12 @@
     // ============================================================
     // 레퍼런스 분석
     // ============================================================
-    let analyzeFileData = null;    // 단일 이미지
-    let analyzeAllPages = null;    // PDF 전체 페이지 배열
+    let analyzeFileData = null;
+    let analyzeAllPages = null;
     let analyzeMimeType = null;
+    let pdfPageImages = {};      // 렌더링된 페이지 이미지 캐시 { pageNum: base64 }
+    let selectedPdfPages = new Set();
+    const MAX_SELECT = 5;
 
     function handleAnalyzeFile(files) {
       if (!files || files.length === 0) return;
@@ -1002,44 +1009,68 @@
       analyzeMimeType = 'image/jpeg';
       analyzeFileData = null;
       analyzeAllPages = null;
+      pdfPageImages = {};
+      selectedPdfPages = new Set();
+
       const thumbContainer = document.getElementById('pdf-thumbnails');
       thumbContainer.innerHTML = '<div style="font-size:0.85rem;color:var(--text-muted);">PDF 읽는 중...</div>';
       document.getElementById('pdf-page-selector').style.display = 'block';
+      document.getElementById('pdf-analyze-btn').style.display = 'none';
+      document.getElementById('pdf-selected-count').textContent = '';
 
       try {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const totalPages = Math.min(pdf.numPages, 10); // 최대 10페이지
+        const totalPages = pdf.numPages;
         thumbContainer.innerHTML = '';
 
-        // 썸네일용 플레이스홀더 순서대로 생성
+        // 플레이스홀더 순서대로 먼저 생성
         const thumbDivs = [];
         for (let i = 1; i <= totalPages; i++) {
           const thumbDiv = document.createElement('div');
           thumbDiv.className = 'pdf-thumb';
           thumbDiv.dataset.page = i;
           thumbDiv.innerHTML = `
-            <div style="width:100px;height:130px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:0.75rem;color:#999;">${i}p</div>
+            <div style="width:80px;height:104px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:0.72rem;color:#999;">${i}p</div>
             <div class="pdf-thumb-label">${i}p</div>`;
+          thumbDiv.onclick = () => togglePdfPage(i, thumbDiv, pdf, file.name);
           thumbContainer.appendChild(thumbDiv);
           thumbDivs.push(thumbDiv);
         }
 
-        // 전체 페이지 이미지 수집
-        const pages = [];
+        // 썸네일만 순서대로 렌더링 (분석용 이미지는 선택 시 렌더링)
         for (let i = 1; i <= totalPages; i++) {
           const page = await pdf.getPage(i);
-
-          // 썸네일 렌더링
-          const thumbViewport = page.getViewport({ scale: 0.3 });
-          const thumbCanvas = document.createElement('canvas');
-          thumbCanvas.width = thumbViewport.width;
-          thumbCanvas.height = thumbViewport.height;
-          await page.render({ canvasContext: thumbCanvas.getContext('2d'), viewport: thumbViewport }).promise;
+          const viewport = page.getViewport({ scale: 0.25 });
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
           thumbDivs[i - 1].innerHTML = `<div class="pdf-thumb-label">${i}p</div>`;
-          thumbDivs[i - 1].insertBefore(thumbCanvas, thumbDivs[i - 1].firstChild);
+          thumbDivs[i - 1].insertBefore(canvas, thumbDivs[i - 1].firstChild);
+        }
 
-          // 분석용 고해상도 렌더링
+        document.getElementById('pdf-selected-count').textContent = `0 / ${MAX_SELECT} 선택됨`;
+
+      } catch (err) {
+        thumbContainer.innerHTML = `<div style="font-size:0.85rem;color:#ef4444;">PDF 읽기 실패: ${err.message}</div>`;
+      }
+    }
+
+    async function togglePdfPage(pageNum, thumbEl, pdf, fileName) {
+      if (selectedPdfPages.has(pageNum)) {
+        // 선택 해제
+        selectedPdfPages.delete(pageNum);
+        thumbEl.classList.remove('selected');
+      } else {
+        if (selectedPdfPages.size >= MAX_SELECT) {
+          alert(`최대 ${MAX_SELECT}페이지까지 선택 가능해요.`);
+          return;
+        }
+        // 분석용 이미지 렌더링 (캐시 없으면)
+        if (!pdfPageImages[pageNum]) {
+          thumbEl.style.opacity = '0.5';
+          const page = await pdf.getPage(pageNum);
           const viewport = page.getViewport({ scale: 1.5 });
           const canvas = document.createElement('canvas');
           const MAX = 1200;
@@ -1051,24 +1082,34 @@
           const out = document.createElement('canvas');
           out.width = w; out.height = h;
           out.getContext('2d').drawImage(canvas, 0, 0, w, h);
-          pages.push(out.toDataURL('image/jpeg', 0.7).split(',')[1]);
+          pdfPageImages[pageNum] = out.toDataURL('image/jpeg', 0.7).split(',')[1];
+          thumbEl.style.opacity = '1';
         }
-
-        analyzeAllPages = pages;
-
-        // 미리보기는 1페이지로
-        const previewData = 'data:image/jpeg;base64,' + pages[0];
-        document.getElementById('analyze-preview-img').src = previewData;
-        document.getElementById('analyze-preview-name').textContent = `${file.name} — 전체 ${totalPages}페이지`;
-        document.getElementById('analyze-preview-wrap').classList.add('show');
-
-        if (pdf.numPages > 10) {
-          thumbContainer.insertAdjacentHTML('afterend', '<div style="font-size:0.78rem;color:#B45309;margin-top:8px;">⚠️ 최대 10페이지까지 분석 가능 (나머지 페이지 제외)</div>');
-        }
-
-      } catch (err) {
-        thumbContainer.innerHTML = `<div style="font-size:0.85rem;color:#ef4444;">PDF 읽기 실패: ${err.message}</div>`;
+        selectedPdfPages.add(pageNum);
+        thumbEl.classList.add('selected');
       }
+
+      // 카운트 업데이트
+      const count = selectedPdfPages.size;
+      document.getElementById('pdf-selected-count').textContent = `${count} / ${MAX_SELECT} 선택됨`;
+      document.getElementById('pdf-analyze-btn').style.display = count > 0 ? 'block' : 'none';
+
+      // 미리보기 첫 선택 페이지로
+      if (count > 0) {
+        const firstPage = Math.min(...selectedPdfPages);
+        document.getElementById('analyze-preview-img').src = 'data:image/jpeg;base64,' + pdfPageImages[firstPage];
+        document.getElementById('analyze-preview-name').textContent = `${fileName} — ${[...selectedPdfPages].sort((a,b)=>a-b).join(', ')}p 선택됨`;
+        document.getElementById('analyze-preview-wrap').classList.add('show');
+      } else {
+        document.getElementById('analyze-preview-wrap').classList.remove('show');
+      }
+    }
+
+    function analyzePdfSelected() {
+      if (selectedPdfPages.size === 0) return;
+      const sortedPages = [...selectedPdfPages].sort((a, b) => a - b);
+      analyzeAllPages = sortedPages.map(p => pdfPageImages[p]);
+      analyzeImage();
     }
 
     async function analyzeImage() {
@@ -1272,12 +1313,16 @@
     function resetAnalyze() {
       analyzeFileData = null;
       analyzeAllPages = null;
+      pdfPageImages = {};
+      selectedPdfPages = new Set();
       document.getElementById('analyze-upload-area').style.display = 'block';
       document.getElementById('analyze-preview-wrap').classList.remove('show');
       document.getElementById('analyze-result').classList.remove('show');
       document.getElementById('analyze-file-input').value = '';
       document.getElementById('pdf-page-selector').style.display = 'none';
       document.getElementById('pdf-thumbnails').innerHTML = '';
+      document.getElementById('pdf-analyze-btn').style.display = 'none';
+      document.getElementById('pdf-selected-count').textContent = '';
     }
 
     function analyzeOnDragOver(e) { e.preventDefault(); document.getElementById('analyze-upload-zone').classList.add('dragover'); }

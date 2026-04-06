@@ -19,7 +19,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1500,
+        max_tokens: 4000,
         messages: [
           {
             role: 'user',
@@ -34,26 +34,51 @@ export default async function handler(req, res) {
               },
               {
                 type: 'text',
-                text: `이 이미지는 한국 이커머스 상세페이지입니다.
-아래 9개 구성요소 기준으로 각 섹션이 어떤 내용으로 구성되어 있는지 자세하게 분석해주세요:
-1.인트로 2.메인페이지 3.특장점 4.인증/권위입증 5.비교 6.리뷰 7.브랜드소개/스토리 8.이벤트/배너 9.자주묻는질문
+                text: `당신은 한국 이커머스 상세페이지 전문 디자이너이자 기획자입니다.
+이 상세페이지 이미지를 아래 4가지 관점에서 깊이 있게 분석해주세요.
 
 반드시 아래 JSON 형식으로만 답변하세요. 문자열 안에 큰따옴표 사용 금지:
+
 {
-  "industry": "업종 추정",
-  "product": "제품 추정",
-  "layout_style": "레이아웃 스타일",
-  "color_tone": "컬러 톤 분석",
-  "sections_found": ["발견된 섹션1", "발견된 섹션2"],
-  "main_section": "이 이미지의 주요 섹션",
+  "industry": "업종",
+  "product": "제품명 추정",
+
+  "color_system": {
+    "main_color": "메인 컬러와 헥스코드 추정",
+    "sub_color": "서브 컬러",
+    "accent_color": "강조 컬러",
+    "color_emotion": "이 컬러 조합이 주는 감성과 브랜드 방향",
+    "color_strategy": "컬러를 통한 구매 심리 전략"
+  },
+
+  "design_system": {
+    "font_style": "폰트 스타일 분석 (굵기 위계, 크기 대비 등)",
+    "layout_pattern": "레이아웃 패턴 (중앙정렬/좌우분할 등)",
+    "spacing": "여백 활용 방식",
+    "image_style": "이미지 사용 방식 (컷팅/배경/연출 등)",
+    "visual_hierarchy": "시각적 위계 구조"
+  },
+
+  "planning_analysis": {
+    "target_customer": "타겟 고객 추정",
+    "core_message": "핵심 메시지",
+    "customer_flow": "고객 심리 흐름 (왜 이 순서로 구성했는가)",
+    "conversion_strategy": "구매 전환 전략",
+    "differentiation": "경쟁 제품과의 차별화 포인트"
+  },
+
+  "sections_found": ["발견된 섹션"],
+  "main_section": "주요 섹션",
   "section_details": [
     {
       "name": "섹션 이름",
       "found": true,
-      "content": "이 섹션에서 어떤 내용을 어떻게 표현했는지 자세한 설명",
-      "technique": "사용된 디자인 기법이나 카피 전략"
+      "content": "어떤 내용과 메시지를 담았는지",
+      "planning_intent": "이 섹션의 기획 의도",
+      "design_technique": "사용된 디자인 기법"
     }
   ],
+
   "good_points": ["잘된 점1", "잘된 점2", "잘된 점3"],
   "reference_points": ["참고할 점1", "참고할 점2"]
 }`

@@ -418,9 +418,7 @@
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin-bottom: 24px;
-      padding-bottom: 20px;
-      border-bottom: 1px solid var(--border);
+      margin-bottom: 0;
     }
     .analyze-tag {
       font-size: 0.8rem;
@@ -444,6 +442,19 @@
     .analyze-point-card.ref .analyze-point-item::before { content: "→"; color: #EA580C; font-weight: 700; }
 
     .analyze-color { font-size: 0.85rem; color: var(--text-muted); padding: 12px 16px; background: var(--bg); border-radius: 8px; }
+
+    .analyze-group { margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
+    .analyze-group-title { font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px; }
+    .analyze-grid { display: grid; gap: 10px; }
+    .analyze-grid-item { background: var(--bg); border-radius: 8px; padding: 12px 14px; }
+    .analyze-grid-label { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .analyze-grid-value { font-size: 0.875rem; line-height: 1.6; color: var(--text); }
+    .color-chips { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .color-chip { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+    .color-swatch { width: 28px; height: 28px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.08); flex-shrink: 0; }
+    .color-chip-info { display: flex; flex-direction: column; }
+    .color-chip-role { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; }
+    .color-chip-name { font-size: 0.8rem; font-weight: 500; color: var(--text); }
 
     .btn-reanalyze {
       margin-top: 20px;
@@ -593,13 +604,34 @@
       </div>
       <div class="analyze-result-body">
 
-        <!-- 발견된 섹션 태그 -->
-        <div style="font-size:0.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px;">발견된 섹션</div>
-        <div class="analyze-section-tags" id="analyze-section-tags"></div>
+        <!-- 컬러 시스템 -->
+        <div class="analyze-group" id="analyze-color-group">
+          <div class="analyze-group-title">컬러 시스템</div>
+          <div class="color-chips" id="analyze-color-chips"></div>
+          <div class="analyze-grid" id="analyze-color-detail"></div>
+        </div>
 
-        <!-- 섹션별 상세 분석 -->
-        <div style="font-size:0.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:12px;">섹션별 상세 분석</div>
-        <div id="analyze-section-details"></div>
+        <!-- 디자인 시스템 -->
+        <div class="analyze-group" id="analyze-design-group">
+          <div class="analyze-group-title">디자인 시스템</div>
+          <div class="analyze-grid" id="analyze-design-detail"></div>
+        </div>
+
+        <!-- 기획 분석 -->
+        <div class="analyze-group" id="analyze-planning-group">
+          <div class="analyze-group-title">기획 분석</div>
+          <div class="analyze-grid" id="analyze-planning-detail"></div>
+        </div>
+
+        <!-- 발견된 섹션 태그 -->
+        <div class="analyze-group">
+          <div class="analyze-group-title">발견된 섹션</div>
+          <div class="analyze-section-tags" id="analyze-section-tags"></div>
+
+          <!-- 섹션별 상세 분석 -->
+          <div style="font-size:0.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:12px; margin-top:20px;">섹션별 상세 분석</div>
+          <div id="analyze-section-details"></div>
+        </div>
 
         <!-- 잘된점 / 참고할점 -->
         <div class="analyze-points">
@@ -612,9 +644,6 @@
             <div id="analyze-ref"></div>
           </div>
         </div>
-
-        <!-- 컬러 분석 -->
-        <div class="analyze-color" id="analyze-color"></div>
 
         <button class="btn-reanalyze" onclick="resetAnalyze()">← 다른 이미지 분석</button>
       </div>
@@ -928,7 +957,63 @@
 
     function showAnalyzeResult(data) {
       document.getElementById('analyze-industry').textContent = `${data.industry || ''} · ${data.product || ''}`;
-      document.getElementById('analyze-style').textContent = `${data.layout_style || ''} · ${data.color_tone || ''}`;
+      document.getElementById('analyze-style').textContent = data.industry ? '상세페이지 분석 결과' : '';
+
+      // 컬러 시스템
+      const cs = data.color_system || {};
+      const colorRoles = [
+        { role: '메인', value: cs.main_color },
+        { role: '서브', value: cs.sub_color },
+        { role: '강조', value: cs.accent_color },
+      ];
+      document.getElementById('analyze-color-chips').innerHTML = colorRoles.filter(c => c.value).map(c => {
+        const hexMatch = c.value.match(/#[0-9A-Fa-f]{3,6}/);
+        const hex = hexMatch ? hexMatch[0] : '#ccc';
+        return `
+          <div class="color-chip">
+            <div class="color-swatch" style="background:${hex}"></div>
+            <div class="color-chip-info">
+              <span class="color-chip-role">${c.role}</span>
+              <span class="color-chip-name">${c.value}</span>
+            </div>
+          </div>`;
+      }).join('');
+      document.getElementById('analyze-color-detail').innerHTML = [
+        { label: '컬러 감성 · 브랜드 방향', value: cs.color_emotion },
+        { label: '구매 심리 전략', value: cs.color_strategy },
+      ].filter(i => i.value).map(i => `
+        <div class="analyze-grid-item">
+          <div class="analyze-grid-label">${i.label}</div>
+          <div class="analyze-grid-value">${i.value}</div>
+        </div>`).join('');
+
+      // 디자인 시스템
+      const ds = data.design_system || {};
+      document.getElementById('analyze-design-detail').innerHTML = [
+        { label: '폰트 스타일', value: ds.font_style },
+        { label: '레이아웃 패턴', value: ds.layout_pattern },
+        { label: '여백 활용', value: ds.spacing },
+        { label: '이미지 사용 방식', value: ds.image_style },
+        { label: '시각적 위계', value: ds.visual_hierarchy },
+      ].filter(i => i.value).map(i => `
+        <div class="analyze-grid-item">
+          <div class="analyze-grid-label">${i.label}</div>
+          <div class="analyze-grid-value">${i.value}</div>
+        </div>`).join('');
+
+      // 기획 분석
+      const pa = data.planning_analysis || {};
+      document.getElementById('analyze-planning-detail').innerHTML = [
+        { label: '타겟 고객', value: pa.target_customer },
+        { label: '핵심 메시지', value: pa.core_message },
+        { label: '고객 심리 흐름', value: pa.customer_flow },
+        { label: '구매 전환 전략', value: pa.conversion_strategy },
+        { label: '경쟁 차별화', value: pa.differentiation },
+      ].filter(i => i.value).map(i => `
+        <div class="analyze-grid-item">
+          <div class="analyze-grid-label">${i.label}</div>
+          <div class="analyze-grid-value">${i.value}</div>
+        </div>`).join('');
 
       // 섹션 태그
       const tags = (data.sections_found || []).map(s =>
@@ -950,7 +1035,8 @@
               <span class="section-detail-badge ${found ? 'found' : 'not-found'}">${found ? '발견됨' : '없음'}</span>
             </div>
             ${detail && detail.content ? `<div class="section-detail-content">${detail.content}</div>` : ''}
-            ${detail && detail.technique ? `<div class="section-detail-technique">${detail.technique}</div>` : ''}
+            ${detail && detail.planning_intent ? `<div class="section-detail-technique">기획 의도: ${detail.planning_intent}</div>` : ''}
+            ${detail && detail.design_technique ? `<div class="section-detail-technique">디자인 기법: ${detail.design_technique}</div>` : ''}
           </div>
         `;
       }).join('');
@@ -964,9 +1050,6 @@
       document.getElementById('analyze-ref').innerHTML = (data.reference_points || []).map(p =>
         `<div class="analyze-point-item">${p}</div>`
       ).join('');
-
-      // 컬러
-      document.getElementById('analyze-color').textContent = `🎨 컬러 분석: ${data.color_tone || ''}`;
 
       document.getElementById('analyze-result').classList.add('show');
     }

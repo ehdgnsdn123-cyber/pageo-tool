@@ -3,7 +3,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { imageBase64, images, mimeType } = req.body;
+  const { imageBase64, images, mimeType, pdfText } = req.body;
 
   if (!imageBase64 && (!images || images.length === 0)) {
     return res.status(400).json({ error: '이미지가 없어요!' });
@@ -36,6 +36,10 @@ export default async function handler(req, res) {
             role: 'user',
             content: [
               ...imageBlocks,
+              ...(pdfText ? [{
+                type: 'text',
+                text: `아래는 PDF에서 추출한 전체 텍스트입니다. 이미지와 함께 참고해서 분석하세요:\n\n${pdfText.slice(0, 15000)}`
+              }] : []),
               {
                 type: 'text',
                 text: `당신은 한국 이커머스 상세페이지 기획 전문가입니다.

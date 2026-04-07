@@ -661,6 +661,8 @@
 
     <!-- 결과 -->
     <div class="analyze-result" id="analyze-result">
+      <!-- 샘플 페이지 이미지 스트립 -->
+      <div id="analyze-page-strip" style="display:none;background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:12px;"></div>
       <div class="analyze-score-wrap">
         <div class="analyze-score-industry" id="analyze-industry"></div>
         <div class="analyze-score-style" id="analyze-style"></div>
@@ -1009,6 +1011,8 @@
     let analyzeMimeType = null;
     let pdfThumbnails = [];   // 썸네일 캔버스 배열 (전체 페이지)
     let currentAnalysisData = null;  // 현재 분석 결과 저장용
+    let currentPdfText = '';  // PDF 텍스트 추출본
+    let sampledPageImages = [];  // 결과 화면에 표시할 샘플 페이지 이미지
 
     function handleAnalyzeFile(files) {
       if (!files || files.length === 0) return;
@@ -1083,8 +1087,10 @@
           thumbDivs.push(thumbDiv);
         }
 
+        currentPdfText = '';
         for (let i = 1; i <= totalPages; i++) {
           const page = await pdf.getPage(i);
+          // 썸네일 렌더링
           const viewport = page.getViewport({ scale: 0.4 });
           const canvas = document.createElement('canvas');
           canvas.width = viewport.width;
@@ -1093,6 +1099,12 @@
           thumbDivs[i - 1].innerHTML = `<div class="pdf-thumb-label">${i}p</div>`;
           thumbDivs[i - 1].insertBefore(canvas, thumbDivs[i - 1].firstChild);
           pdfThumbnails.push(canvas);
+          // 텍스트 추출
+          try {
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(' ').trim();
+            if (pageText) currentPdfText += `[${i}p] ${pageText}\n`;
+          } catch(e) {}
         }
 
         document.getElementById('pdf-selected-count').textContent = `총 ${totalPages}페이지`;
@@ -1111,55 +1123,27 @@
     function analyzePdfAll() {
       if (pdfThumbnails.length === 0) return;
 
-      // 20장 균등 샘플링 (페이지 수가 20장 이하면 전부)
+      const totalCount = pdfThumbnails.length;
       const MAX_SAMPLE = 20;
-      let sampled;
-      if (pdfThumbnails.length <= MAX_SAMPLE) {
-        sampled = pdfThumbnails;
+
+      // 균등 샘플링
+      let sampledCanvases = [];
+      if (totalCount <= MAX_SAMPLE) {
+        sampledCanvases = pdfThumbnails;
       } else {
-        sampled = [];
         for (let i = 0; i < MAX_SAMPLE; i++) {
-          const idx = Math.round(i * (pdfThumbnails.length - 1) / (MAX_SAMPLE - 1));
-          sampled.push(pdfThumbnails[idx]);
+          const idx = Math.round(i * (totalCount - 1) / (MAX_SAMPLE - 1));
+          sampledCanvases.push(pdfThumbnails[idx]);
         }
       }
 
-      // 샘플된 페이지들을 세로로 합치기
-      const thumbW = sampled[0].width;
-      const totalH = sampled.reduce((sum, c) => sum + c.height, 0);
+      // 각 페이지를 개별 base64로 변환 (합치지 않음)
+      sampledPageImages = sampledCanvases.map(c => c.toDataURL('image/jpeg', 0.8));
+      analyzeAllPages = sampledPageImages.map(d => d.split(',')[1]);
+      analyzeFileData = null;
 
-      const merged = document.createElement('canvas');
-      merged.width = thumbW;
-      merged.height = totalH;
-      const ctx = merged.getContext('2d');
-      let y = 0;
-      for (const thumb of sampled) {
-        ctx.drawImage(thumb, 0, y);
-        y += thumb.height;
-      }
-
-      // 최대 3000px 높이로 제한 (선명도 유지)
-      const MAX_H = 3000;
-      const out = document.createElement('canvas');
-      if (totalH > MAX_H) {
-        const ratio = MAX_H / totalH;
-        out.width = Math.round(thumbW * ratio);
-        out.height = MAX_H;
-      } else {
-        out.width = thumbW;
-        out.height = totalH;
-      }
-      out.getContext('2d').drawImage(merged, 0, 0, out.width, out.height);
-
-      analyzeFileData = out.toDataURL('image/jpeg', 0.82).split(',')[1];
-      analyzeAllPages = null;
-
-      const sampleCount = sampled.length;
-      const totalCount = pdfThumbnails.length;
       document.getElementById('analyze-preview-name').textContent =
-        totalCount > MAX_SAMPLE
-          ? `${window._currentPdfName} — ${totalCount}페이지 중 ${sampleCount}장 균등 샘플링`
-          : `${window._currentPdfName} — 전체 ${totalCount}페이지`;
+        `${window._currentPdfName} — ${totalCount}페이지 중 ${sampledCanvases.length}장 분석`;
 
       analyzeImage();
     }
@@ -1172,7 +1156,7 @@
 
       try {
         const body = analyzeAllPages
-          ? { images: analyzeAllPages, mimeType: analyzeMimeType }
+          ? { images: analyzeAllPages, mimeType: analyzeMimeType, pdfText: currentPdfText }
           : { imageBase64: analyzeFileData, mimeType: analyzeMimeType };
 
         const res = await fetch('/api/analyze', {
@@ -1194,6 +1178,19 @@
     function showAnalyzeResult(data) {
       currentAnalysisData = data;
       document.getElementById('analyze-industry').textContent = `${data.industry || ''} · ${data.product || ''}`;
+
+      // 샘플 이미지 스트립 표시
+      const stripEl = document.getElementById('analyze-page-strip');
+      if (sampledPageImages.length > 0) {
+        stripEl.style.display = 'block';
+        stripEl.innerHTML = `
+          <div style="font-size:0.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">분석에 사용된 페이지 (${sampledPageImages.length}장)</div>
+          <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;">
+            ${sampledPageImages.map((src, i) => `<img src="${src}" style="height:120px;width:auto;border-radius:6px;border:1px solid var(--border);flex-shrink:0;" title="${i+1}번째 샘플 페이지"/>`).join('')}
+          </div>`;
+      } else {
+        stripEl.style.display = 'none';
+      }
       document.getElementById('analyze-style').textContent = data.target_customer || '';
 
       // 기획 개요
@@ -1266,6 +1263,8 @@
       analyzeFileData = null;
       analyzeAllPages = null;
       currentAnalysisData = null;
+      currentPdfText = '';
+      sampledPageImages = [];
       pdfThumbnails = [];
       document.getElementById('analyze-upload-area').style.display = 'block';
       document.getElementById('analyze-preview-wrap').classList.remove('show');

@@ -487,6 +487,40 @@
     }
     .btn-reanalyze:hover { background: var(--bg); }
 
+    /* 저장된 분석 카드 */
+    .saved-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      transition: box-shadow 0.2s;
+    }
+    .saved-card:hover { box-shadow: 0 4px 16px rgba(44,74,110,0.1); }
+    .saved-card-badge {
+      background: var(--accent);
+      color: #fff;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      white-space: nowrap;
+      flex-shrink: 0;
+      align-self: flex-start;
+      margin-top: 2px;
+    }
+    .saved-card-body { flex: 1; min-width: 0; }
+    .saved-card-title { font-size: 0.95rem; font-weight: 700; margin-bottom: 4px; }
+    .saved-card-meta { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 8px; }
+    .saved-card-preview { font-size: 0.82rem; color: var(--text); line-height: 1.6; background: var(--accent-light); border-radius: 8px; padding: 10px 12px; }
+    .saved-card-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .btn-saved-view { padding: 6px 16px; border-radius: 50px; border: 1.5px solid var(--accent); background: none; color: var(--accent); font-family: var(--font); font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+    .btn-saved-view:hover { background: var(--accent-light); }
+    .btn-saved-delete { padding: 6px 14px; border-radius: 50px; border: 1.5px solid var(--border); background: none; color: var(--text-muted); font-family: var(--font); font-size: 0.78rem; cursor: pointer; transition: all 0.15s; }
+    .btn-saved-delete:hover { border-color: #EF4444; color: #EF4444; background: #FEF2F2; }
+
     @media (max-width: 640px) {
       .page { padding: 20px 16px; }
       .form-grid { grid-template-columns: 1fr; }
@@ -699,7 +733,10 @@
           <div id="analyze-insights"></div>
         </div>
 
-        <button class="btn-reanalyze" onclick="resetAnalyze()">← 다른 이미지 분석</button>
+        <div style="display:flex; gap:10px; margin-top:20px; flex-wrap:wrap;">
+          <button class="btn-reanalyze" onclick="resetAnalyze()">← 다른 이미지 분석</button>
+          <button id="btn-save-analysis" onclick="saveAnalysis()" style="padding:10px 24px; background:var(--accent); color:#fff; border:none; border-radius:50px; font-family:var(--font); font-size:0.875rem; font-weight:600; cursor:pointer;">저장하기</button>
+        </div>
       </div>
     </div>
 
@@ -707,6 +744,16 @@
 
   <!-- 레퍼런스 갤러리 페이지 -->
   <div class="page" id="page-gallery">
+
+    <!-- 저장된 분석 섹션 -->
+    <div id="saved-analyses-section" style="margin-bottom:32px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+        <p class="page-title" style="margin:0;">저장된 분석</p>
+        <span id="saved-count" style="font-size:0.8rem; color:var(--text-muted);"></span>
+      </div>
+      <div id="saved-analyses-list" style="display:grid; gap:12px;"></div>
+      <div id="saved-empty" style="font-size:0.85rem; color:var(--text-muted); padding:16px 0; display:none;">저장된 분석이 없어요. 레퍼런스 분석 후 저장해보세요!</div>
+    </div>
 
     <div class="gallery-header">
       <div>
@@ -783,6 +830,7 @@
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.getElementById('page-' + id).classList.add('active');
       btn.classList.add('active');
+      if (id === 'gallery') renderSavedAnalyses();
     }
 
     // ============================================================
@@ -960,6 +1008,7 @@
     let analyzeAllPages = null;
     let analyzeMimeType = null;
     let pdfThumbnails = [];   // 썸네일 캔버스 배열 (전체 페이지)
+    let currentAnalysisData = null;  // 현재 분석 결과 저장용
 
     function handleAnalyzeFile(files) {
       if (!files || files.length === 0) return;
@@ -1120,6 +1169,7 @@
     }
 
     function showAnalyzeResult(data) {
+      currentAnalysisData = data;
       document.getElementById('analyze-industry').textContent = `${data.industry || ''} · ${data.product || ''}`;
       document.getElementById('analyze-style').textContent = data.target_customer || '';
 
@@ -1192,6 +1242,7 @@
     function resetAnalyze() {
       analyzeFileData = null;
       analyzeAllPages = null;
+      currentAnalysisData = null;
       pdfThumbnails = [];
       document.getElementById('analyze-upload-area').style.display = 'block';
       document.getElementById('analyze-preview-wrap').classList.remove('show');
@@ -1201,11 +1252,97 @@
       document.getElementById('pdf-thumbnails').innerHTML = '';
       document.getElementById('pdf-analyze-btn').style.display = 'none';
       document.getElementById('pdf-selected-count').textContent = '';
+      const btn = document.getElementById('btn-save-analysis');
+      btn.textContent = '저장하기';
+      btn.style.background = 'var(--accent)';
+      btn.disabled = false;
     }
 
     function analyzeOnDragOver(e) { e.preventDefault(); document.getElementById('analyze-upload-zone').classList.add('dragover'); }
     function analyzeOnDragLeave() { document.getElementById('analyze-upload-zone').classList.remove('dragover'); }
     function analyzeOnDrop(e) { e.preventDefault(); document.getElementById('analyze-upload-zone').classList.remove('dragover'); handleAnalyzeFile(e.dataTransfer.files); }
+
+    // ============================================================
+    // 분석 저장 / 불러오기
+    // ============================================================
+    function saveAnalysis() {
+      if (!currentAnalysisData) return;
+      const saved = JSON.parse(localStorage.getItem('pageo-analyses') || '[]');
+      const entry = {
+        id: Date.now(),
+        date: new Date().toLocaleDateString('ko-KR'),
+        product: currentAnalysisData.product || '제품명 없음',
+        industry: currentAnalysisData.industry || '',
+        data: currentAnalysisData
+      };
+      saved.unshift(entry);
+      localStorage.setItem('pageo-analyses', JSON.stringify(saved));
+      const btn = document.getElementById('btn-save-analysis');
+      btn.textContent = '✓ 저장됨';
+      btn.style.background = '#16A34A';
+      btn.disabled = true;
+      renderSavedAnalyses();
+    }
+
+    function renderSavedAnalyses() {
+      const saved = JSON.parse(localStorage.getItem('pageo-analyses') || '[]');
+      const list = document.getElementById('saved-analyses-list');
+      const empty = document.getElementById('saved-empty');
+      const count = document.getElementById('saved-count');
+      if (!list) return;
+
+      count.textContent = saved.length > 0 ? `${saved.length}개 저장됨` : '';
+
+      if (saved.length === 0) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+      list.innerHTML = saved.map(entry => {
+        const insights = (entry.data.key_learnings || []).slice(0, 2).join(' / ');
+        return `
+        <div class="saved-card">
+          <div class="saved-card-badge">${entry.industry || '기타'}</div>
+          <div class="saved-card-body">
+            <div class="saved-card-title">${entry.product}</div>
+            <div class="saved-card-meta">${entry.date} · ${(entry.data.section_flow || []).length}개 섹션 분석</div>
+            ${insights ? `<div class="saved-card-preview">${insights}</div>` : ''}
+            <div class="saved-card-actions">
+              <button class="btn-saved-view" onclick="viewSavedAnalysis(${entry.id})">분석 보기</button>
+              <button class="btn-saved-delete" onclick="deleteSavedAnalysis(${entry.id})">삭제</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function viewSavedAnalysis(id) {
+      const saved = JSON.parse(localStorage.getItem('pageo-analyses') || '[]');
+      const entry = saved.find(e => e.id === id);
+      if (!entry) return;
+      // 분석 탭으로 이동 후 결과 표시
+      const analyzeTab = document.querySelectorAll('.tab')[1];
+      showPage('analyze', analyzeTab);
+      resetAnalyze();
+      showAnalyzeResult(entry.data);
+      document.getElementById('analyze-upload-area').style.display = 'none';
+      // 저장하기 버튼 비활성화 (이미 저장됨)
+      const btn = document.getElementById('btn-save-analysis');
+      btn.textContent = '✓ 저장됨';
+      btn.style.background = '#16A34A';
+      btn.disabled = true;
+    }
+
+    function deleteSavedAnalysis(id) {
+      if (!confirm('이 분석을 삭제할까요?')) return;
+      let saved = JSON.parse(localStorage.getItem('pageo-analyses') || '[]');
+      saved = saved.filter(e => e.id !== id);
+      localStorage.setItem('pageo-analyses', JSON.stringify(saved));
+      renderSavedAnalyses();
+    }
+
+    renderSavedAnalyses();
   </script>
 
 </body>

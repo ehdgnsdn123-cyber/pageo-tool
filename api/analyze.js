@@ -30,7 +30,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 8000,
+        max_tokens: 4000,
         messages: [
           {
             role: 'user',
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
               ...imageBlocks,
               ...(pdfText ? [{
                 type: 'text',
-                text: `아래는 PDF에서 추출한 전체 텍스트입니다. 이미지와 함께 참고해서 분석하세요:\n\n${pdfText.slice(0, 15000)}`
+                text: `아래는 PDF에서 추출한 전체 텍스트입니다. 이미지와 함께 참고해서 분석하세요:\n\n${pdfText.slice(0, 8000)}`
               }] : []),
               {
                 type: 'text',
